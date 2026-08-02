@@ -49,6 +49,22 @@
 
     <footer class="footer">© 2026 Angel. Todos los derechos reservados.</footer>
 
+    <!-- Firebase (opcional) - compat layer para uso directo desde navegador -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <!-- Crea `firebase-config.js` con tu configuración y estará disponible como window.firebaseConfig -->
+    <script src="firebase-config.js"></script>
+    <script>
+      if (window.firebaseConfig && window.firebase) {
+        try {
+          firebase.initializeApp(window.firebaseConfig);
+          window.db = firebase.firestore();
+        } catch (e) {
+          console.warn('No se pudo inicializar Firebase:', e);
+        }
+      }
+    </script>
+
     <script src="script.js"></script>
   </body>
 </html>

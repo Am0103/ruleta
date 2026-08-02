@@ -4,6 +4,10 @@ const initialParticipants = ['Luz', 'Richard', 'Juanes', 'Yuderli', 'Marcela', '
 
 const state = loadState();
 
+// Firestore listener unsubscribe
+let firestoreUnsubscribe = null;
+
+
 const participantSelect = document.getElementById('participantSelect');
 const pinInput = document.getElementById('pinInput');
 const loginButton = document.getElementById('loginButton');
@@ -34,6 +38,11 @@ pinInput.addEventListener('keydown', (event) => {
 spinButton.addEventListener('click', handleSpin);
 
 render();
+
+// Si Firebase está configurado, iniciar listener global para mantener estado sincronizado
+if (window.db) {
+  startFirestoreListener();
+}
 
 function loadState() {
   try {
@@ -223,7 +232,34 @@ function handleSpin() {
     renderLoginState();
     return;
   }
+  // si hay Firestore, hacemos la operación en el servidor (transaction) para evitar colisiones
+  if (window.db) {
+    spinButton.disabled = true;
+    rouletteWheel.classList.add('spinning');
+    rouletteWheel.innerHTML = '<span>Girando...</span>';
+    resultMessage.textContent = 'La ruleta está girando...';
+    statusMessage.textContent = 'Espera un momento.';
 
+    spinWithServer(user.name)
+      .then((chosenName) => {
+        rouletteWheel.classList.remove('spinning');
+        resultMessage.textContent = `¡${user.name} eligió a ${chosenName}!`;
+        statusMessage.textContent = `${chosenName} ya no puede volver a girar y puede ver quién lo eligió.`;
+        rouletteWheel.innerHTML = `<span>${chosenName}</span>`;
+        render();
+      })
+      .catch((err) => {
+        console.error(err);
+        rouletteWheel.classList.remove('spinning');
+        resultMessage.textContent = 'Error al girar. Intenta nuevamente.';
+        statusMessage.textContent = err.message || '';
+        render();
+      });
+
+    return;
+  }
+
+  // fallback local si no hay servidor
   spinButton.disabled = true;
   rouletteWheel.classList.add('spinning');
   rouletteWheel.innerHTML = '<span>Girando...</span>';
@@ -253,6 +289,47 @@ function handleSpin() {
   }, 1800);
 }
 
+function spinWithServer(currentUserName) {
+  if (!window.db) return Promise.reject(new Error('No hay conexión al servidor'));
+  const docRef = window.db.collection('ruleta').doc('state');
+  return window.db.runTransaction((transaction) => {
+    return transaction.get(docRef).then((doc) => {
+      let data = doc.exists ? doc.data() : null;
+      let participants = data && Array.isArray(data.participants) ? data.participants.map((p) => ({ ...createParticipant(p.name), ...p })) : state.participants.map((p) => ({ ...p }));
+      const candidates = participants.filter((p) => p.name !== currentUserName && !p.hasSpun && !p.wasChosen);
+      if (!candidates.length) {
+        throw new Error('No hay participantes disponibles para asignar.');
+      }
+      const index = Math.floor(Math.random() * candidates.length);
+      const target = candidates[index];
+      // aplicar cambios
+      const updated = participants.map((p) => {
+        if (p.name === currentUserName) {
+          return { ...p, hasSpun: true, assignedTarget: target.name };
+        }
+        if (p.name === target.name) {
+          return { ...p, wasChosen: true, selectedBy: currentUserName };
+        }
+        return p;
+      });
+      transaction.set(docRef, { participants: updated, updatedAt: Date.now() });
+      return target.name;
+    });
+  }).then((chosenName) => {
+    // fetch latest and update local state
+    return docRef.get().then((doc) => {
+      if (doc.exists) {
+        const data = doc.data();
+        if (data && Array.isArray(data.participants)) {
+          state.participants = data.participants.map((p) => ({ ...createParticipant(p.name), ...p }));
+          saveState();
+        }
+      }
+      return chosenName;
+    });
+  });
+}
+
 function chooseTarget(currentUserName) {
   const candidates = state.participants.filter((participant) => {
     return participant.name !== currentUserName && !participant.hasSpun && !participant.wasChosen;
@@ -279,11 +356,14 @@ function renderAdminPanel() {
     adminPanel.style.display = 'none';
     adminList.innerHTML = '';
     adminMessage.textContent = '';
+    stopFirestoreListener();
     return;
   }
 
   adminPanel.style.display = 'block';
   renderAdminList();
+  // start listening to server state if available
+  if (window.db) startFirestoreListener();
 }
 
 function renderAdminList() {
@@ -359,6 +439,50 @@ function handleAdminSave() {
   saveState();
   renderAdminList();
   adminMessage.textContent = 'Cambios guardados correctamente.';
+  // also sync to server when admin
+  if (window.db && state.currentUserIsAdmin) {
+    writeServerState();
+  }
+}
+
+function writeServerState() {
+  if (!window.db) return;
+  const docRef = window.db.collection('ruleta').doc('state');
+  docRef.set({ participants: state.participants.map((p) => ({ ...p })), updatedAt: Date.now() })
+    .then(() => {
+      adminMessage.textContent = 'Cambios sincronizados en servidor.';
+    })
+    .catch((err) => {
+      console.error('Error al escribir en Firestore', err);
+      adminMessage.textContent = 'Error al sincronizar en servidor.';
+    });
+}
+
+function startFirestoreListener() {
+  if (!window.db) return;
+  const docRef = window.db.collection('ruleta').doc('state');
+  // unsubscribe previous
+  if (firestoreUnsubscribe) firestoreUnsubscribe();
+  firestoreUnsubscribe = docRef.onSnapshot((doc) => {
+    if (!doc.exists) return;
+    const data = doc.data();
+    if (!data || !Array.isArray(data.participants)) return;
+    // replace local participants with server version, preserving local-only fields if needed
+    state.participants = data.participants.map((p) => ({ ...createParticipant(p.name), ...p }));
+    saveState();
+    renderAdminList();
+    adminMessage.textContent = 'Estado sincronizado desde servidor.';
+  }, (err) => {
+    console.error('Firestore listener error', err);
+    adminMessage.textContent = 'Error al escuchar cambios del servidor.';
+  });
+}
+
+function stopFirestoreListener() {
+  if (firestoreUnsubscribe) {
+    firestoreUnsubscribe();
+    firestoreUnsubscribe = null;
+  }
 }
 
 function handleExportState() {
