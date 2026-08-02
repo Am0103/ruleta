@@ -36,7 +36,12 @@
           <div id="adminContent">
             <table class="admin-list" id="adminList"></table>
           </div>
-          <button id="saveAdminButton" class="secondary-button">Guardar cambios</button>
+          <div class="admin-actions">
+            <button id="saveAdminButton" class="secondary-button">Guardar cambios</button>
+            <button id="exportStateButton" class="secondary-button">Exportar estado (JSON)</button>
+            <button id="importStateButton" class="secondary-button">Importar estado (JSON)</button>
+            <input id="importStateInput" type="file" accept="application/json" style="display:none">
+          </div>
           <p id="adminMessage" class="message"></p>
         </div>
       </section>

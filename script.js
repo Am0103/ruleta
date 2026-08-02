@@ -18,10 +18,16 @@ const adminPanel = document.getElementById('adminPanel');
 const adminList = document.getElementById('adminList');
 const saveAdminButton = document.getElementById('saveAdminButton');
 const adminMessage = document.getElementById('adminMessage');
+const exportStateButton = document.getElementById('exportStateButton');
+const importStateButton = document.getElementById('importStateButton');
+const importStateInput = document.getElementById('importStateInput');
 
 loginButton.addEventListener('click', handleLogin);
 exitButton.addEventListener('click', handleExit);
 saveAdminButton.addEventListener('click', handleAdminSave);
+exportStateButton.addEventListener('click', handleExportState);
+importStateButton.addEventListener('click', () => importStateInput.click());
+importStateInput.addEventListener('change', handleImportFile);
 pinInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') handleLogin();
 });
@@ -353,6 +359,65 @@ function handleAdminSave() {
   saveState();
   renderAdminList();
   adminMessage.textContent = 'Cambios guardados correctamente.';
+}
+
+function handleExportState() {
+  if (!state.currentUserIsAdmin) return;
+  const dataStr = JSON.stringify(state, null, 2);
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'ruleta-state.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  adminMessage.textContent = 'Archivo descargado.';
+}
+
+function handleImportFile(event) {
+  if (!state.currentUserIsAdmin) return;
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!parsed || !Array.isArray(parsed.participants)) {
+        adminMessage.textContent = 'Archivo inválido: formato esperado { participants: [...] }';
+        importStateInput.value = '';
+        return;
+      }
+
+      // Confirm overwrite
+      const ok = confirm('Importar el archivo reemplazará el estado actual en este navegador. ¿Continuar?');
+      if (!ok) {
+        importStateInput.value = '';
+        return;
+      }
+
+      // Merge participants safely: recreate base structure
+      state.participants = parsed.participants.map((p) => ({
+        ...createParticipant(p.name || ''),
+        ...p,
+      }));
+
+      // preserve admin flag only locally
+      state.currentUser = null;
+      state.currentUserIsAdmin = false;
+      saveState();
+      render();
+      adminMessage.textContent = 'Importación completada.';
+    } catch (err) {
+      console.error(err);
+      adminMessage.textContent = 'Error al leer el archivo JSON.';
+    } finally {
+      importStateInput.value = '';
+    }
+  };
+  reader.readAsText(file);
 }
 
 function getParticipant(name) {
