@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ruleta de personas</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="panel login-panel">
+        <div class="card login-card">
+          <h1>Ruleta mágica</h1>
+          <p class="subtitle">Ingresa con tu nombre y crea o usa tu PIN para entrar. Los nombres ya están cargados y listos para comenzar.</p>
+          <select id="participantSelect"></select>
+          <input id="pinInput" type="password" placeholder="Crea o ingresa tu PIN" />
+          <button id="loginButton">Entrar</button>
+          <p id="loginMessage" class="message"></p>
+        </div>
+      </section>
+
+      <section class="panel app-panel" id="appPanel">
+        <div class="card roulette-card">
+          <h2>Ruleta</h2>
+          <div id="rouletteWheel" class="roulette-wheel">
+            <span>Presiona girar</span>
+          </div>
+          <button id="spinButton">Girar</button>
+          <button id="exitButton" class="secondary-button">Salir</button>
+          <p id="resultMessage" class="result-message"></p>
+          <p id="statusMessage" class="status-message"></p>
+        </div>
+        <div class="card admin-card" id="adminPanel" style="display: none;">
+          <h2>Panel Admin</h2>
+          <p class="subtitle">Solo Angel con la clave <strong>678</strong> puede ver este panel.</p>
+          <div id="adminContent">
+            <table class="admin-list" id="adminList"></table>
+          </div>
+          <button id="saveAdminButton" class="secondary-button">Guardar cambios</button>
+          <p id="adminMessage" class="message"></p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">© 2026 Angel. Todos los derechos reservados.</footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
