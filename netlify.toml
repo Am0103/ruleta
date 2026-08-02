@@ -1,0 +1,6 @@
+[build]
+  publish = "."
+  # No build command necesario para este sitio estático
+
+[build.environment]
+  NODE_ENV = "production"
